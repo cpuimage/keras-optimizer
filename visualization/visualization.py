@@ -20,7 +20,9 @@ from optimizer.Lans import Lans
 from optimizer.MadGrad import MadGrad
 from optimizer.RectifiedAdam import RectifiedAdam
 from optimizer.Rm3 import Rm3
-
+from optimizer.DiffGrad import DiffGrad
+from optimizer.nero import nero
+from optimizer.VAdam import VAdam
 from landscape_3d import landscape_3d
 
 benchmark_fn = [beale(), rosenbrock(), sphere()]
@@ -46,4 +48,7 @@ landscape_3d(benchmark_fn[benchmark_index], [
     MadGrad(learning_rate=learning_rate),
     RectifiedAdam(learning_rate=learning_rate),
     Rm3(learning_rate=learning_rate),
+    DiffGrad(learning_rate=learning_rate),
+    nero(learning_rate=learning_rate),
+    VAdam(learning_rate=learning_rate),
 ])
