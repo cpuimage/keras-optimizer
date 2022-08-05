@@ -1,5 +1,5 @@
 # keras-optimizer
-Keras-Optimizer  --  collection of optimizers for keras
+Keras-Optimizer  --  Collection of Optimizers for Keras and TensorFlow Keras
 
  ## Supported Optimizers
 
