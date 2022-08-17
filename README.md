@@ -4,8 +4,9 @@ Keras-Optimizer -- Collection of Optimizers for Keras and TensorFlow Keras
   
 ## Supported Optimizers
 
-| https://arxiv.org/abs/2106.11514 |AdaMomentum|                                                         Rethinking Adam: A Twofold Exponential Moving Average Approach                                                          |
+| https://arxiv.org/abs/2208.06677 |Adan|                                                          Adan: Adaptive Nesterov Momentum Algorithm for Faster Optimizing Deep Models                                                          |
 |:--------------------------------:|:-----------:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+| https://arxiv.org/abs/2106.11514 |AdaMomentum|                                                         Rethinking Adam: A Twofold Exponential Moving Average Approach                                                          |
 | https://arxiv.org/abs/2102.07227 |nero|                                 Learning by Turning: Neural Architecture Aware Optimisation                                                                                     | 
 | https://arxiv.org/abs/2101.11075 |MadGrad|                               Adaptivity without Compromise: A Momentumized, Adaptive, Dual Averaged Gradient Method for Stochastic Optimization                                | 
 | https://arxiv.org/abs/2011.06220 |VAdam|                                Artificial Neural Variability for Deep Learning: On Overfitting, Noise Memorization, and Catastrophic Forgetting                                 |
