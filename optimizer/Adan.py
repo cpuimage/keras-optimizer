@@ -66,7 +66,7 @@ class Adan(optimizer.Optimizer):
             self._beliefs.append(self.add_variable_from_reference(model_variable=var, variable_name="v"))
             self._momentums.append(self.add_variable_from_reference(model_variable=var, variable_name="m"))
             self._prev_gradients.append(self.add_variable_from_reference(model_variable=var, variable_name="p"))
-            self._velocities.append(self.add_variable_from_reference(model_variable=var, variable_name="k"))
+            self._velocities.append(self.add_variable_from_reference(model_variable=var, variable_name="n"))
 
     def _use_weight_decay(self, variable):
         exclude_from_weight_decay = getattr(self, "_exclude_from_weight_decay", [])
@@ -85,36 +85,49 @@ class Adan(optimizer.Optimizer):
         m = self._momentums[index]
         v = self._beliefs[index]
         p = self._prev_gradients[index]
-        k = self._velocities[index]
+        n = self._velocities[index]
         one_minus_beta_1 = (1 - self.beta_1)
         one_minus_beta_2 = (1 - self.beta_2)
         one_minus_beta_3 = (1 - self.beta_3)
+        init_step = self.iterations == 0
+        first_step = self.iterations == 1
         # Apply step weight decay
         if self._use_weight_decay(variable):
             wd = tf.cast(self.weight_decay, variable.dtype)
             variable.assign_sub(variable * wd * lr)
         if isinstance(gradient, tf.IndexedSlices):
             # Sparse gradients.
-            m.assign_add(-m * one_minus_beta_1)
-            m.scatter_add(tf.IndexedSlices(gradient.values * one_minus_beta_1, gradient.indices))
-            v.assign_add(-v * one_minus_beta_2)
-            v.scatter_add(
-                tf.IndexedSlices((gradient.values - p) * one_minus_beta_2, gradient.indices))
-            k.assign_add(-v * one_minus_beta_3)
-            k.scatter_add(
-                tf.IndexedSlices(
-                    tf.math.square(
-                        gradient.values + (gradient.values - p) * one_minus_beta_2) * one_minus_beta_3 + self.epsilon,
-                    gradient.indices))
+            m = tf.cond(init_step, lambda: m.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices)),
+                        lambda: m.scatter_add(
+                            tf.IndexedSlices((gradient.values - m) * one_minus_beta_1, gradient.indices)))
+
+            v = tf.cond(init_step,
+                        lambda: v,
+                        lambda: tf.cond(first_step,
+                                        lambda: v.scatter_update(
+                                            tf.IndexedSlices(gradient.values - p, gradient.indices)),
+                                        lambda: v.scatter_add(
+                                            tf.IndexedSlices(((gradient.values - p) - v) * one_minus_beta_2),
+                                            gradient.indices)))
+            n = tf.cond(init_step,
+                        lambda: n.scatter_update(tf.IndexedSlices(tf.square(gradient.values), gradient.indices)),
+                        lambda: n.scatter_add(tf.IndexedSlices((tf.math.square(
+                            gradient.values + one_minus_beta_2 * (gradient.values - p)) - n) * one_minus_beta_3,
+                                                               gradient.indices)))
             p.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices))
         else:
             # Dense gradients.
-            m.assign_add((gradient - m) * one_minus_beta_1)
-            v.assign_add(((gradient - p) - v) * one_minus_beta_2)
-            k.assign_add(
-                (tf.math.square(gradient + one_minus_beta_2 * (gradient - p)) - k) * one_minus_beta_3 + self.epsilon)
+            m = tf.cond(init_step, lambda: m.assign(gradient),
+                        lambda: m.assign_add((gradient - m) * one_minus_beta_1))
+            v = tf.cond(init_step, lambda: v,
+                        lambda: tf.cond(first_step, lambda: v.assign(gradient - p),
+                                        lambda: v.assign_add(((gradient - p) - v) * one_minus_beta_2)))
+            n = tf.cond(init_step, lambda: n.assign(tf.math.square(gradient)),
+                        lambda: n.assign_add(
+                            (tf.math.square(gradient + one_minus_beta_2 * (gradient - p)) - n) * one_minus_beta_3))
             p.assign(gradient)
-        var = lr * tf.math.rsqrt(k) * (m + one_minus_beta_2 * v)
+
+        var = lr * tf.math.rsqrt(n + self.epsilon) * (m + one_minus_beta_2 * v)
         variable.assign_sub(var)
 
     def get_config(self):
