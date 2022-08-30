@@ -84,9 +84,10 @@ class Adan(optimizer.Optimizer):
         local_step = tf.cast(self.iterations + 1, variable.dtype)
         beta_1_power = tf.pow(tf.cast(self.beta_1, variable.dtype), local_step)
         beta_2_power = tf.pow(tf.cast(self.beta_2, variable.dtype), local_step)
-        alpha_n = tf.sqrt(1 - tf.pow(tf.cast(self.beta_3, variable.dtype), local_step))
-        alpha_m = alpha_n / (1 - beta_1_power)
-        alpha_v = alpha_n / (1 - beta_2_power)
+        beta_3_power = tf.pow(tf.cast(self.beta_3, variable.dtype), local_step)
+        alpha_m = 1.0 / (1.0 - beta_1_power)
+        alpha_v = 1.0 / (1.0 - beta_2_power)
+        alpha_n = 1.0 / (1.0 - beta_3_power)
         index = self._index_dict[self._var_key(variable)]
         m = self._momentums[index]
         v = self._beliefs[index]
@@ -106,7 +107,6 @@ class Adan(optimizer.Optimizer):
             m = tf.cond(init_step, lambda: m.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices)),
                         lambda: m.scatter_add(
                             tf.IndexedSlices((gradient.values - m) * one_minus_beta_1, gradient.indices)))
-
             v = tf.cond(init_step,
                         lambda: v,
                         lambda: tf.cond(first_step,
@@ -132,8 +132,7 @@ class Adan(optimizer.Optimizer):
                         lambda: n.assign_add(
                             (tf.math.square(gradient + one_minus_beta_2 * (gradient - p)) - n) * one_minus_beta_3))
             p.assign(gradient)
-
-        var = lr * tf.math.rsqrt(n + self.epsilon) * (alpha_m * m + one_minus_beta_2 * v * alpha_v)
+        var = lr * tf.math.rsqrt(alpha_n * n + self.epsilon) * (alpha_m * m + one_minus_beta_2 * v * alpha_v)
         variable.assign_sub(var)
 
     def get_config(self):
