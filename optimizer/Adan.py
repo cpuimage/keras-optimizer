@@ -81,6 +81,12 @@ class Adan(optimizer.Optimizer):
     def update_step(self, gradient, variable):
         """Update step given gradient and the associated model variable."""
         lr = tf.cast(self.learning_rate, variable.dtype)
+        local_step = tf.cast(self.iterations + 1, variable.dtype)
+        beta_1_power = tf.pow(tf.cast(self.beta_1, variable.dtype), local_step)
+        beta_2_power = tf.pow(tf.cast(self.beta_2, variable.dtype), local_step)
+        alpha_n = tf.sqrt(1 - tf.pow(tf.cast(self.beta_3, variable.dtype), local_step))
+        alpha_m = alpha_n / (1 - beta_1_power)
+        alpha_v = alpha_n / (1 - beta_2_power)
         index = self._index_dict[self._var_key(variable)]
         m = self._momentums[index]
         v = self._beliefs[index]
@@ -127,7 +133,7 @@ class Adan(optimizer.Optimizer):
                             (tf.math.square(gradient + one_minus_beta_2 * (gradient - p)) - n) * one_minus_beta_3))
             p.assign(gradient)
 
-        var = lr * tf.math.rsqrt(n + self.epsilon) * (m + one_minus_beta_2 * v)
+        var = lr * tf.math.rsqrt(n + self.epsilon) * (alpha_m * m + one_minus_beta_2 * v * alpha_v)
         variable.assign_sub(var)
 
     def get_config(self):
