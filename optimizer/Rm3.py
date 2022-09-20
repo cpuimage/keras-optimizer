@@ -41,7 +41,7 @@ class Rm3(optimizer.Optimizer):
         )
         self._learning_rate = self._build_learning_rate(learning_rate)
         self.weight_decay = weight_decay
-
+        self.step = 0
         if self.weight_decay is None:
             raise ValueError(
                 "Missing value of `weight_decay` which is required and"
@@ -53,13 +53,11 @@ class Rm3(optimizer.Optimizer):
         if hasattr(self, "_built") and self._built:
             return
         self._built = True
-        self._grads_0 = []
-        self._grads_1 = []
-        self._grads_2 = []
+        self._grads_prev0 = []
+        self._grads_prev1 = []
         for var in var_list:
-            self._grads_0.append(self.add_variable_from_reference(model_variable=var, variable_name="g0"))
-            self._grads_1.append(self.add_variable_from_reference(model_variable=var, variable_name="g1"))
-            self._grads_2.append(self.add_variable_from_reference(model_variable=var, variable_name="g2"))
+            self._grads_prev0.append(self.add_variable_from_reference(model_variable=var, variable_name="p0"))
+            self._grads_prev1.append(self.add_variable_from_reference(model_variable=var, variable_name="p1"))
 
     def _use_weight_decay(self, variable):
         exclude_from_weight_decay = getattr(
@@ -79,17 +77,19 @@ class Rm3(optimizer.Optimizer):
         """Update step given gradient and the associated model variable."""
         lr = tf.cast(self.learning_rate, variable.dtype)
         index = self._index_dict[self._var_key(variable)]
-        grads = [self._grads_0, self._grads_1, self._grads_2]
-        ring_size = 3
-        ring_buffer = grads[self.iterations % ring_size][index]
-        if isinstance(gradient, tf.IndexedSlices):
-            ring_buffer.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices))
-        else:
-            ring_buffer.assign(gradient)
-
-        def update_fn():
-            gradients = tf.concat(
-                [tf.expand_dims(grads[i][index], -1) for i in range(ring_size)], -1)
+        grads = [self._grads_prev0, self._grads_prev1]
+        if index == 0:
+            self.step += 1
+        ring_size = 2
+        if self.step > ring_size:
+            gradient_of_3 = [tf.expand_dims(grads[i][index], -1) for i in range(ring_size)]
+            ring_buffer = grads[self.step % ring_size][index]
+            if isinstance(gradient, tf.IndexedSlices):
+                ring_buffer.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices))
+            else:
+                ring_buffer.assign(gradient)
+            gradient_of_3.append(tf.expand_dims(ring_buffer, -1))
+            gradients = tf.concat(gradient_of_3, -1)
             sum_gradients = tf.reduce_sum(gradients, -1)
             min_gradients = tf.reduce_min(gradients, -1)
             max_gradients = tf.reduce_max(gradients, -1)
@@ -99,8 +99,12 @@ class Rm3(optimizer.Optimizer):
                 wd = tf.cast(self.weight_decay, variable.dtype)
                 median_of_3 = median_of_3 + variable * wd
             variable.assign_sub(median_of_3 * lr)
-
-        tf.cond(self.iterations >= ring_size, update_fn, lambda: {})
+        else:
+            ring_buffer = grads[self.step % ring_size][index]
+            if isinstance(gradient, tf.IndexedSlices):
+                ring_buffer.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices))
+            else:
+                ring_buffer.assign(gradient)
 
     def get_config(self):
         config = super().get_config()
