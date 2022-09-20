@@ -21,6 +21,7 @@ class Adan(optimizer.Optimizer):
             beta_2=0.92,
             beta_3=0.99,
             epsilon=1e-16,
+            iterations_step=0,
             clipnorm=None,
             clipvalue=None,
             global_clipnorm=None,
@@ -48,6 +49,7 @@ class Adan(optimizer.Optimizer):
         self.beta_2 = beta_2
         self.beta_3 = beta_3
         self.epsilon = epsilon
+        self.iterations_step = iterations_step
         if self.weight_decay is None:
             raise ValueError(
                 "Missing value of `weight_decay` which is required and"
@@ -96,12 +98,11 @@ class Adan(optimizer.Optimizer):
         one_minus_beta_1 = (1 - self.beta_1)
         one_minus_beta_2 = (1 - self.beta_2)
         one_minus_beta_3 = (1 - self.beta_3)
-        init_step = self.iterations == 0
 
         if isinstance(gradient, tf.IndexedSlices):
             # Sparse gradients.
-            p = tf.cond(init_step, lambda: p.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices)),
-                        lambda: p)
+            if self.iterations_step == 0:
+                p.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices))
             m.scatter_add(tf.IndexedSlices((gradient.values - m) * one_minus_beta_1, gradient.indices))
             v.scatter_add(tf.IndexedSlices(((gradient.values - p) - v) * one_minus_beta_2), gradient.indices)
             n.scatter_add(tf.IndexedSlices(
@@ -110,7 +111,8 @@ class Adan(optimizer.Optimizer):
             p.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices))
         else:
             # Dense gradients.
-            p = tf.cond(init_step, lambda: p.assign(gradient), lambda: p)
+            if self.iterations_step == 0:
+                p.assign(gradient)
             m.assign_add((gradient - m) * one_minus_beta_1)
             v.assign_add(((gradient - p) - v) * one_minus_beta_2)
             n.assign_add((tf.math.square(gradient + one_minus_beta_2 * (gradient - p)) - n) * one_minus_beta_3)
@@ -121,6 +123,8 @@ class Adan(optimizer.Optimizer):
             wd = tf.cast(self.weight_decay, variable.dtype)
             var_t = var_t + variable * wd
         variable.assign_sub(var_t * lr)
+        if index == 0:
+            self.iterations_step += 1
 
     def get_config(self):
         config = super().get_config()
