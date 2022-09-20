@@ -78,8 +78,6 @@ class Rm3(optimizer.Optimizer):
         lr = tf.cast(self.learning_rate, variable.dtype)
         index = self._index_dict[self._var_key(variable)]
         grads = [self._grads_prev0, self._grads_prev1]
-        if index == 0:
-            self.step += 1
         ring_size = 2
         if self.step > ring_size:
             gradient_of_3 = [tf.expand_dims(grads[i][index], -1) for i in range(ring_size)]
@@ -105,6 +103,8 @@ class Rm3(optimizer.Optimizer):
                 ring_buffer.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices))
             else:
                 ring_buffer.assign(gradient)
+        if index == 0:
+            self.step += 1
 
     def get_config(self):
         config = super().get_config()
