@@ -21,7 +21,6 @@ class Adan(optimizer.Optimizer):
             beta_2=0.92,
             beta_3=0.99,
             epsilon=1e-16,
-            iterations_step=0,
             clipnorm=None,
             clipvalue=None,
             global_clipnorm=None,
@@ -49,7 +48,6 @@ class Adan(optimizer.Optimizer):
         self.beta_2 = beta_2
         self.beta_3 = beta_3
         self.epsilon = epsilon
-        self.iterations_step = iterations_step
         if self.weight_decay is None:
             raise ValueError(
                 "Missing value of `weight_decay` which is required and"
@@ -82,11 +80,12 @@ class Adan(optimizer.Optimizer):
 
     def update_step(self, gradient, variable):
         """Update step given gradient and the associated model variable."""
-        lr = tf.cast(self.learning_rate, variable.dtype)
-        local_step = tf.cast(self.iterations + 1, variable.dtype)
-        beta_1_power = tf.pow(tf.cast(self.beta_1, variable.dtype), local_step)
-        beta_2_power = tf.pow(tf.cast(self.beta_2, variable.dtype), local_step)
-        beta_3_power = tf.pow(tf.cast(self.beta_3, variable.dtype), local_step)
+        var_dtype = variable.dtype
+        lr = tf.cast(self.learning_rate, var_dtype)
+        local_step = tf.cast(self.iterations + 1, var_dtype)
+        beta_1_power = tf.pow(tf.cast(self.beta_1, var_dtype), local_step)
+        beta_2_power = tf.pow(tf.cast(self.beta_2, var_dtype), local_step)
+        beta_3_power = tf.pow(tf.cast(self.beta_3, var_dtype), local_step)
         alpha_n = tf.sqrt(1.0 - beta_3_power)
         alpha_m = alpha_n / (1.0 - beta_1_power)
         alpha_v = alpha_n / (1.0 - beta_2_power)
@@ -101,21 +100,19 @@ class Adan(optimizer.Optimizer):
 
         if isinstance(gradient, tf.IndexedSlices):
             # Sparse gradients.
-            if self.iterations_step == 0:
-                p.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices))
             m.scatter_add(tf.IndexedSlices((gradient.values - m) * one_minus_beta_1, gradient.indices))
-            v.scatter_add(tf.IndexedSlices(((gradient.values - p) - v) * one_minus_beta_2), gradient.indices)
+            diff = (gradient.values - p) * tf.cast(local_step != 1.0, var_dtype)
+            v.scatter_add(tf.IndexedSlices((diff - v) * one_minus_beta_2), gradient.indices)
             n.scatter_add(tf.IndexedSlices(
-                (tf.math.square(gradient.values + one_minus_beta_2 * (gradient.values - p)) - n) * one_minus_beta_3,
+                (tf.math.square(gradient.values + one_minus_beta_2 * diff) - n) * one_minus_beta_3,
                 gradient.indices))
             p.scatter_update(tf.IndexedSlices(gradient.values, gradient.indices))
         else:
             # Dense gradients.
-            if self.iterations_step == 0:
-                p.assign(gradient)
             m.assign_add((gradient - m) * one_minus_beta_1)
-            v.assign_add(((gradient - p) - v) * one_minus_beta_2)
-            n.assign_add((tf.math.square(gradient + one_minus_beta_2 * (gradient - p)) - n) * one_minus_beta_3)
+            diff = (gradient - p) * tf.cast(local_step != 1.0, var_dtype)
+            v.assign_add((diff - v) * one_minus_beta_2)
+            n.assign_add((tf.math.square(gradient + one_minus_beta_2 * diff) - n) * one_minus_beta_3)
             p.assign(gradient)
         var_t = tf.math.rsqrt(n + self.epsilon) * (alpha_m * m + one_minus_beta_2 * v * alpha_v)
         # Apply step weight decay
@@ -123,8 +120,6 @@ class Adan(optimizer.Optimizer):
             wd = tf.cast(self.weight_decay, variable.dtype)
             var_t = var_t + variable * wd
         variable.assign_sub(var_t * lr)
-        if index == 0:
-            self.iterations_step += 1
 
     def get_config(self):
         config = super().get_config()
