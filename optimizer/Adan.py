@@ -118,8 +118,11 @@ class Adan(optimizer.Optimizer):
         # Apply step weight decay
         if self._use_weight_decay(variable):
             wd = tf.cast(self.weight_decay, variable.dtype)
-            var_t = var_t + variable * wd
-        variable.assign_sub(var_t * lr)
+            var_updated = variable - var_t * lr
+            var_updated = var_updated / (1.0 + lr * wd)
+            variable.assign(var_updated)
+        else:
+            variable.assign_sub(var_t * lr)
 
     def get_config(self):
         config = super().get_config()
