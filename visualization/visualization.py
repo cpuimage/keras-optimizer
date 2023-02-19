@@ -24,6 +24,7 @@ from optimizer.DiffGrad import DiffGrad
 from optimizer.nero import nero
 from optimizer.VAdam import VAdam
 from optimizer.Adan import Adan
+from optimizer.Lion import Lion
 from landscape_3d import landscape_3d
 
 benchmark_fn = [beale(), rosenbrock(), sphere()]
@@ -53,4 +54,5 @@ landscape_3d(benchmark_fn[benchmark_index], [
     nero(learning_rate=learning_rate),
     VAdam(learning_rate=learning_rate),
     Adan(learning_rate=learning_rate),
+    Lion(learning_rate=learning_rate),
 ])

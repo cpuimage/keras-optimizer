@@ -118,7 +118,7 @@ linestyle = [(0, (1, 10)), (0, (1, 1)), (0, (1, 1)), (0, (5, 10)), (0, (5, 5)), 
              (0, (3, 1, 1, 1, 1, 1))]
 
 
-def landscape_3d(benchmark, optimizers, starting_point=(0, 0), savefig=False, save_path='figures/'):
+def landscape_3d(benchmark, optimizers, starting_point=(0, 0), savefig=False, save_path='figures/', steps=1000):
     # pyplot settings
     plt.ion()
     fig = plt.figure(figsize=(3, 2), dpi=300)
@@ -161,7 +161,7 @@ def landscape_3d(benchmark, optimizers, starting_point=(0, 0), savefig=False, sa
     # define method of gradient descent for each graph
     # optimizer label name, learning rate, color
 
-    ops_param = [(str(opt._name) + "(lr:" + str(opt.learning_rate.numpy()) + ")", XKCD_COLORS[i],
+    ops_param = [(str(opt.name) + "(lr:" + str(opt.learning_rate.numpy()) + ")", XKCD_COLORS[i],
                   linestyle[np.random.randint(len(linestyle))]) for i, opt in
                  enumerate(optimizers)]
 
@@ -181,7 +181,7 @@ def landscape_3d(benchmark, optimizers, starting_point=(0, 0), savefig=False, sa
     plot_cache = [None for _ in range(len(optimizers))]
 
     # loop each step of the optimization algorithm
-    steps = 1000
+
     for iter in range(steps):
         for i, optimizer in enumerate(optimizers):
             # run a step of optimization and collect new x and y variable values
