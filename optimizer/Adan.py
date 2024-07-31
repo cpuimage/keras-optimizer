@@ -102,7 +102,7 @@ class Adan(optimizer.Optimizer):
             # Sparse gradients.
             m.scatter_add(tf.IndexedSlices((gradient.values - m) * one_minus_beta_1, gradient.indices))
             diff = (gradient.values - p) * tf.cast(local_step != 1.0, var_dtype)
-            v.scatter_add(tf.IndexedSlices((diff - v) * one_minus_beta_2), gradient.indices)
+            v.scatter_add(tf.IndexedSlices((diff - v) * one_minus_beta_2, gradient.indices))
             n.scatter_add(tf.IndexedSlices(
                 (tf.math.square(gradient.values + one_minus_beta_2 * diff) - n) * one_minus_beta_3,
                 gradient.indices))
